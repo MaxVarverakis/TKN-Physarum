@@ -1,0 +1,103 @@
+#pragma once
+
+#include <vector>
+#include <glm/glm.hpp>
+#include <Sparse>
+#include <random>
+#include <iostream>
+
+struct Edge
+{
+    unsigned int i, j; // node indices
+    
+    // only stores initial values of D & Q
+    // this can be made better if create Dvec in place of initializing edge.D and then populating Dvec afterwards (in regularLattice function)
+    double D; // conductance
+    double Q; // flow
+};
+
+struct Node
+{
+    glm::fvec2 pos; // for rendering circles/lines
+    // s and p stored in `Eigen` vectors
+};
+
+class Graph
+{
+private:
+    // Randomness
+    uint32_t m_master_seed;
+    std::mt19937 m_rng_sources;
+    std::mt19937 m_rng_initD;
+
+    unsigned int m_resolution;
+    unsigned int m_sink_idx;
+    std::vector<unsigned int> m_source_ids;
+    const double I0 { 1.0 };
+    const double D0 { 0.1 }; // TODO: jitter this init value for each edge
+    bool solverInitialized { false };
+    bool fitnessConverged { false };
+    const double m_tol = 1e-4; // for D convergence
+    double totalD;
+    double E; // dissipation
+    
+
+    std::vector<Node> m_nodes;
+    std::vector<Edge> m_edges;
+    
+    Eigen::SparseMatrix<double> L; // Laplacian
+    Eigen::VectorXd p, s; // pressures, sources/sinks
+    
+    // reduced versions
+    Eigen::SparseMatrix<double> Lr;
+    Eigen::VectorXd sr;
+    
+    Eigen::VectorXd Dvec, Qvec, dDvec; // vectorized edge attributes for solver
+    
+    Eigen::SparseLU<Eigen::SparseMatrix<double>> solver;
+
+    void regularLattice(const float width, const float height);
+    std::vector<unsigned int> rectangularBoundaryIndices();
+    std::vector<unsigned int> randomSources(const std::vector<unsigned int>& boundary, unsigned int n);
+public:
+    Graph(uint32_t seed, const float width, const float height, const unsigned int resolution)
+    : m_master_seed { seed }
+    , m_rng_sources(seed + 1)
+    , m_rng_initD(seed + 2)
+    , m_resolution { resolution }
+    {
+        std::cout << "Graph init seed : " << m_master_seed << '\n';
+        // vector reservations occur depending on graph initialization type
+        regularLattice(width, height);
+        initLaplacian();
+    };
+    
+    std::size_t nodeCount() { return m_nodes.size(); }
+    std::size_t edgeCount() { return m_edges.size(); }
+    unsigned int resolution() const { return m_resolution; }
+    const std::vector<Node>& nodes() { return m_nodes; }
+    const std::vector<Edge>& edges() { return m_edges; }
+    const Eigen::SparseMatrix<double>& getL() { return L; }
+    const Eigen::VectorXd& getS() { return s; }
+    const Eigen::VectorXd& getD() { return Dvec; }
+    const Eigen::VectorXd& getQ() { return Qvec; }
+    double dissipation() { return E; }
+
+    void initLaplacian();
+    void updateLaplacian();
+    void reduceSystem();
+    void solvePressures();
+    void computeFlows();
+    void updateConductances(double dt);
+    double efficiency();
+    bool conductanceConverged() const;
+
+    void evolveGraph(double dt)
+    {
+        updateLaplacian();
+        solvePressures(); // sets source/sink terms
+        reduceSystem(); // automatically sets p
+        computeFlows();
+        updateConductances(dt);
+    }
+};
