@@ -50,7 +50,7 @@ void Graph::regularLattice(const float width, const float height)
     m_sink_idx = (m_resolution + 1) * (m_resolution - 1) / 2;
 
     std::vector<unsigned int> boundary { rectangularBoundaryIndices() };
-    m_source_ids = randomSources(boundary, 6);
+    m_source_ids = randomSources(boundary, n_sources);
 
     // Determine the aspect ratio (with padding)
     float pad { 0.05f };
@@ -84,6 +84,7 @@ void Graph::regularLattice(const float width, const float height)
             if (col_idx != m_resolution - 1)
             {
                 // right (horizontal) edge
+                // adding noise here is OK since |noise| < 1.0 always (no negative D ever)
                 m_edges.emplace_back(col_idx * m_resolution + row_idx, (col_idx + 1) * m_resolution + row_idx, D0 * (1.0 + noise(m_rng_initD)), 0.0);
             }
             if (row_idx != m_resolution - 1)
@@ -112,7 +113,7 @@ void Graph::initLaplacian()
     s.resize(N);
     // merely for visualizing nodes on first frame:
     assert(m_sink_idx < s.size());
-    solvePressures();
+    setSources();
 
     sr.resize(N-1);
 
@@ -120,7 +121,7 @@ void Graph::initLaplacian()
     L.reserve(nnzPerRow);
 
     updateLaplacian();
-    reduceSystem();
+    solvePressures();
 }
 
 void Graph::updateLaplacian()
@@ -145,7 +146,7 @@ void Graph::updateLaplacian()
     L.makeCompressed();
 }
 
-void Graph::reduceSystem()
+void Graph::solvePressures()
 {
     int k { static_cast<int>(m_sink_idx) };
     int N { static_cast<int>(m_nodes.size()) };
@@ -193,7 +194,7 @@ void Graph::reduceSystem()
             p(i) = pr(map(i));
 }
 
-void Graph::solvePressures()
+void Graph::setSources()
 {
     s.setZero();
     s(m_sink_idx) = -I0 * static_cast<double>(m_source_ids.size());
@@ -201,47 +202,173 @@ void Graph::solvePressures()
     for (unsigned int idx : m_source_ids) { s(idx) = I0; }
 }
 
-void Graph::computeFlows()
-{   
-    // for fitness metrics
-    double E_old { E };
-    totalD = 0.0;
-    E = 0.0;
+void Graph::computeFlows(bool checkConvergence)
+{
+    // std::cout << "###############################" << '\n';
+    // for dissipation energy metric
+    double E_old { dissipation() };
+    // double E_old { E };
+    // E = 0.0;
 
     for (unsigned int k = 0; k < Dvec.size(); ++k)
     {
         const Edge& edge { m_edges[k] };
         
         Qvec(k) = Dvec(k) * (p(edge.i) - p(edge.j));
-
-        totalD += Dvec(k);
-        E += Qvec(k) * Qvec(k) / Dvec(k); // might need its own wrapper but fine for now
+        // std::cout << "D_k : " << '\t' << Dvec(k) << '\t' << "|Q_k| : " << '\t' << abs(Qvec(k)) << '\t' << "E_k : " << '\t' << Qvec(k) * Qvec(k) / Dvec(k) << '\n';
+        // E += Qvec(k) * Qvec(k) / Dvec(k); // might need its own wrapper but fine for now
     }
 
     // check fitness (dissipation) for convergence
-    if (abs(E - E_old) / E_old < m_tol) { fitnessConverged = true; }
+    if (checkConvergence && (abs(dissipation() - E_old) / E_old < m_tol)) { fitnessConverged = true; }
+    // if (checkConvergence && (abs(E - E_old) / E_old < m_tol)) { fitnessConverged = true; }
 }
 
 void Graph::updateConductances(double dt)
 {
-    constexpr double eps { 1e-8 };
-    double alpha { 10.0 };
-    double gamma { 2.0 }; // != 1 for nonlinear behavior
+    // constexpr double eps { 1e-18 };
+    // double beta { 1.0 };
+    // double gamma { 3.0 };
+    double alpha { 100.0 };
+    double beta { 10.0 };
+    double gamma { 2.0 };
 
     for (unsigned int k = 0; k < Dvec.size(); ++k)
     {
-        dDvec(k) = pow(alpha * abs(Qvec(k)), gamma) - Dvec(k);
-        Dvec(k) += dt * dDvec(k);
-        Dvec(k) = fmax(Dvec(k), eps);
+        // double Qgamma { pow(abs(Qvec(k)), gamma) };
+        // dDvec(k) = dt * ( Qgamma / (1.0 + Qgamma) - beta * Dvec(k) );
+        dDvec(k) = dt * ( alpha * pow(abs(Qvec(k)), gamma) - beta * Dvec(k) );
+        Dvec(k) += dDvec(k);
+        // Dvec(k) = fmax(Dvec(k), eps);
     }
 }
 
-double Graph::efficiency()
+double Graph::dissipation()
 {
-    return s(m_sink_idx) * s(m_sink_idx) / totalD;
+    // assumes conductances have already been updated to next step
+    return Qvec.cwiseProduct(Qvec).cwiseQuotient(Dvec-dDvec).sum();
+}
+
+double Graph::efficiency(const Eigen::VectorXd& D)
+{
+    return s(m_sink_idx) * s(m_sink_idx) / D.sum();
 }
 
 bool Graph::conductanceConverged() const
 {
     return dDvec.norm() / Dvec.norm() < m_tol;
+}
+
+Eigen::VectorXd Graph::createPerturbationVec(std::mt19937& rng, double eps)
+{
+    std::normal_distribution<double> noise(0.0, 1.0);
+    // std::normal_distribution<double> noise(1.0, eps);
+    unsigned int N { static_cast<unsigned int>(Dvec.size()) };
+    Eigen::VectorXd v(N);
+
+    for (unsigned int i = 0; i < N; ++i)
+    {
+        // Rademacher generator
+        // v(i) = (rng() & 1) ? 1 : -1;
+        // v(i) = (rng() & 1) ? exp(eps / sqrt(N)) : exp(-eps / sqrt(N));
+        v(i) = noise(rng);
+    }
+
+    // return v / sqrt(N);
+    return eps * v.normalized();
+}
+
+double Graph::probeHessian(std::mt19937& rng, double eps)
+{
+    // store converged fitness
+    // double Fstar { efficiency(Dvec) };
+    // double Fstar { E };
+    double Fstar { dissipation() };
+    
+    Eigen::VectorXd delta { createPerturbationVec(rng, eps) };
+    // delta.fill(eps); // to perturb in Dvec-direction explicitly
+    // for (int i = 0; i < delta.size(); ++i)
+    // {
+    //     std::cout << "delta_" << i << " = " << '\t' << delta(i) << '\n';
+    // }
+    Eigen::VectorXd one(delta.size());
+    one.fill(1.0);
+
+    // since ||D|| grows with network size (roughly sqrt(dim(D)) * avg D_i ),
+    // perturbation is scaled by the dimensionless parameter ||D||/sqrt(dim(D))
+    // std::cout << "|delta| = " << eps * Dvec.norm() / sqrt(Dvec.size()) << '\n';
+    // delta *= eps * Dvec.norm() / sqrt(Dvec.size());
+
+    // copy current state
+    Eigen::VectorXd Dstar = Dvec;
+    Eigen::VectorXd Qstar = Qvec;
+    
+    // finite difference calculation requires Dvec^* +/- delta
+    // + delta
+    // Dvec += delta;
+    Eigen::VectorXd opd { one + delta };
+    // for (int i = 0; i < delta.size(); ++i)
+    // {
+    //     std::cout << "D_" << i << " = " << '\t' << Dstar(i) << '\n';
+    //     std::cout << "(one + delta)_" << i << " = " << '\t' << opd(i) << '\n';
+    // }
+    Dvec = Dstar.cwiseProduct(opd);
+    
+    // std::cout << "Relative D+ : " << '\t' << Dvec.norm() / Dstar.norm() << '\n';
+    
+    // recompute flows to get fitness
+    solveStep(false);
+    // double Fplus { efficiency(Dvec) };
+    // double Fplus { E };
+    double Fplus { dissipation() };
+    
+    // - delta
+    // Dvec -= 2 * delta;
+    Eigen::VectorXd omd { one - delta };
+    // for (int i = 0; i < delta.size(); ++i)
+    // {
+    //     std::cout << "D_" << i << " = " << '\t' << Dstar(i) << '\n';
+    //     std::cout << "(one - delta)_" << i << " = " << '\t' << omd(i) << '\n';
+    // }
+    Dvec = Dstar.cwiseProduct(omd);
+    // std::cout << "Relative D- : " << '\t' << Dvec.norm() / Dstar.norm() << '\n';
+    solveStep(false);
+    // double Fminus { efficiency(Dvec) };
+    // double Fminus { E };
+    double Fminus { dissipation() };
+
+    // revert system to steady state
+    // (don't need to recompute flows unless the simulation will continue to evolve beyond Hessian probing)
+    Dvec = Dstar - dDvec;
+    Qvec = Qstar;
+    solveStep(false);
+    Dvec = Dstar;
+
+    // return (Fplus - 2.0 * Fstar + Fminus) / delta.squaredNorm();
+    // exp(epsilon) ~ 1 + epsilon ==> D exp(epsilon) ~ D + epsilon D
+    // D_i * delta_i ~ D (1 +/- epsilon)
+    return (Fplus - 2.0 * Fstar + Fminus) / (eps * eps); // step size division is ambiguous if use delta from Gaussian
+}
+
+std::vector<double> Graph::sampleHSpec(unsigned int nSamples, double eps)
+{
+    std::mt19937 rng(m_master_seed);
+
+    std::vector<double> eigvals;
+    eigvals.reserve(nSamples);
+
+    for (unsigned int i = 0; i < nSamples; ++i)
+    {
+        eigvals.push_back(probeHessian(rng, eps));
+    }
+
+    return eigvals;
+}
+
+bool Graph::efficiencyConverged()
+{
+    double F_old { efficiency(Dvec - dDvec) };
+    double F { efficiency(Dvec) };
+
+    return (abs(F - F_old) / F_old) < m_tol;
 }

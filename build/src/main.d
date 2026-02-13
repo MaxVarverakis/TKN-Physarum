@@ -353,7 +353,8 @@ build/src/main.o: src/main.cpp \
   ../OpenGL_Framework/src/VertexBufferLayout/../Renderer/../IndexBuffer/IndexBuffer.hpp \
   ../OpenGL_Framework/src/VertexBufferLayout/../Renderer/../Shader/Shader.hpp \
   ../OpenGL_Framework/src/Rectangle/Rectangle.hpp \
-  ../OpenGL_Framework/src/Circle/Circle.hpp src/Graph/Graph.hpp
+  ../OpenGL_Framework/src/Circle/Circle.hpp src/Graph/Graph.hpp \
+  src/Utilities/Utilities.hpp
 ../OpenGL_Framework/src/VertexBuffer/VertexBuffer.hpp:
 /opt/homebrew/Cellar/glew/2.2.0_1/include/GL/glew.h:
 ../OpenGL_Framework/src/IndexBuffer/IndexBuffer.hpp:
@@ -710,3 +711,4 @@ build/src/main.o: src/main.cpp \
 ../OpenGL_Framework/src/Rectangle/Rectangle.hpp:
 ../OpenGL_Framework/src/Circle/Circle.hpp:
 src/Graph/Graph.hpp:
+src/Utilities/Utilities.hpp:

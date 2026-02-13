@@ -2,6 +2,7 @@
 #include <math.h>
 #include <random>
 #include <thread>
+#include <iomanip>
 
 // OpenGL helpers (this should be put into one thing!)
 #include "VertexBuffer/VertexBuffer.hpp"
@@ -14,11 +15,12 @@
 
 // project-specific includes go here
 #include "Graph/Graph.hpp"
+#include "Utilities/Utilities.hpp"
 
 SDL_Window* window;
 SDL_GLContext gl_context;
 
-const bool renderGraphics { true };
+const bool renderGraphics { false };
 
 bool is_running;
 bool paused { true };
@@ -131,7 +133,7 @@ int main()
                 {
                     const Node& node { nodes[i] };
                     float fs { static_cast<float>(s(i)) };
-                    circs.emplace_back(Circle(node.pos, 0.1f * std::sqrt(width * height / static_cast<float>(graph.nodeCount())), colorNode(fs)));
+                    circs.emplace_back(Circle(node.pos, 0.2f * std::sqrt(width * height / static_cast<float>(graph.nodeCount())), colorNode(fs)));
                 }
             }
 
@@ -155,7 +157,7 @@ int main()
             
             // const Eigen::SparseMatrix<double>& Laplacian { graph.getL() };
             const std::vector<Edge>& edges { graph.edges() };
-            // const Eigen::VectorXd& D { graph.getD() };
+            const Eigen::VectorXd& D { graph.getD() };
             const Eigen::VectorXd& Q { graph.getQ() };
 
             // TODO:
@@ -174,7 +176,7 @@ int main()
                 lines.emplace_back(1.0f);
                 lines.emplace_back(1.0f);
                 lines.emplace_back(1.0f);
-                lines.emplace_back(10 * abs(edge.Q));
+                lines.emplace_back(10 * abs(edge.D));
                 // OK to use `edge.Q` here since it's synced with Qvec upon initialization
 
                 // node j
@@ -184,7 +186,7 @@ int main()
                 lines.emplace_back(1.0f);
                 lines.emplace_back(1.0f);
                 lines.emplace_back(1.0f);
-                lines.emplace_back(10 * abs(edge.Q));
+                lines.emplace_back(10 * abs(edge.D));
             }
 
             VertexBuffer line_VBO(lines.data(), static_cast<unsigned int>(lines.size() * sizeof(float)), GL_DYNAMIC_DRAW);
@@ -241,11 +243,23 @@ int main()
                 {
                     graph.evolveGraph(DT);
                     // func wrapper for "write fitness to file"
-                    // std::cout << "E :" << '\t' << graph.dissipation() << '\n';
-                    // std::cout << "TE :" << '\t' << graph.efficiency() << '\n';
+                    // std::cout << "##############################################" << '\n';
+                    // std::cout << "DE :" << '\t' << std::fixed << std::setprecision(9) << graph.dissipation() << '\n';
+                    // std::cout << "TE :" << '\t' << graph.efficiency(D) << '\n';
+                    if (graph.conductanceConverged() && graph.fitConverged())
+                    {
+                        std::cout << "Conductance and fitness converged!" << '\n';
+                        // paused = true;
+                        // const std::string path { "/Users/max/TKN_Physarum/" };
+                        // Utilities::exportCSV(path + "data", graph.sampleHSpec(1000, 1e-1));
+                        graph.printSpec(graph.sampleHSpec(1, 1e-1/sqrt(graph.edgeCount())));
+                        is_running = false;
+                    }
                 }
                 if (step)
                 {
+                    // std::mt19937 rng(rd());
+                    // std::cout << graph.probeHessian(rng, 1e-1) << '\n';
                     graph.evolveGraph(DT);
                     step = false;
                 }
@@ -260,9 +274,22 @@ int main()
                 // update line buffer
                 for (unsigned int i = 0; i < edgeCount; ++i)
                 {
-                    // option to try red channel for D and green for Q, with alpha set by D since D > Q
-                    lines[12 * i + 5      ] = static_cast<float>(10 * abs(Q(i)));
-                    lines[12 * (i + 1) - 1] = static_cast<float>(10 * abs(Q(i)));
+                    // comment the two corresponding lines to have flow show up as that color
+                    // red
+                    // lines[12 * i + 2      ] = 1.0f - static_cast<float>(10 * abs(Q(i)));
+                    // lines[12 * (i + 1) - 4] = 1.0f - static_cast<float>(10 * abs(Q(i)));
+                    
+                    // green
+                    // lines[12 * i + 3      ] = 1.0f - static_cast<float>(10 * abs(Q(i)));
+                    // lines[12 * (i + 1) - 3] = 1.0f - static_cast<float>(10 * abs(Q(i)));
+
+                    // blue
+                    lines[12 * i + 4      ] = 1.0f - static_cast<float>(10 * abs(Q(i)));
+                    lines[12 * (i + 1) - 2] = 1.0f - static_cast<float>(10 * abs(Q(i)));
+
+                    // alpha based on D (do not change)
+                    lines[12 * i + 5      ] = static_cast<float>(10 * abs(D(i)));
+                    lines[12 * (i + 1) - 1] = static_cast<float>(10 * abs(D(i)));
                 }
                 line_VBO.updateBuffer(lines.data());
 
@@ -287,10 +314,17 @@ int main()
     }
     else
     {
+        Graph graph(rd(), width, height, 2 * res + 1);
         while (true)
         {
-            Graph graph(rd(), width, height, 2 * res + 1);
             graph.evolveGraph(DT);
+            if (graph.conductanceConverged() && graph.fitConverged())
+            {
+                std::cout << "Conductance and fitness converged!" << '\n';
+                const std::string path { "/Users/max/TKN_Physarum/" };
+                Utilities::exportCSV(path + "data2", graph.sampleHSpec(10000, 1e-1));
+                return 0;
+            }
         }
     }
 }

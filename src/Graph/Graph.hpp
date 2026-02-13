@@ -33,14 +33,12 @@ private:
     unsigned int m_resolution;
     unsigned int m_sink_idx;
     std::vector<unsigned int> m_source_ids;
+    const unsigned int n_sources { 6 };
     const double I0 { 1.0 };
-    const double D0 { 0.1 }; // TODO: jitter this init value for each edge
+    const double D0 { 0.1 };
     bool solverInitialized { false };
     bool fitnessConverged { false };
-    const double m_tol = 1e-4; // for D convergence
-    double totalD;
-    double E; // dissipation
-    
+    const double m_tol = 1e-6; // for convergence
 
     std::vector<Node> m_nodes;
     std::vector<Edge> m_edges;
@@ -81,23 +79,42 @@ public:
     const Eigen::VectorXd& getS() { return s; }
     const Eigen::VectorXd& getD() { return Dvec; }
     const Eigen::VectorXd& getQ() { return Qvec; }
-    double dissipation() { return E; }
-
+    bool fitConverged() { return fitnessConverged; }
+    
     void initLaplacian();
     void updateLaplacian();
-    void reduceSystem();
     void solvePressures();
-    void computeFlows();
+    void setSources();
+    void computeFlows(bool checkConvergence);
     void updateConductances(double dt);
-    double efficiency();
+    double efficiency(const Eigen::VectorXd& D);
+    double dissipation();
     bool conductanceConverged() const;
+    bool efficiencyConverged();
+    Eigen::VectorXd createPerturbationVec(std::mt19937& rng, double eps);
+    double probeHessian(std::mt19937& rng, double eps);
+    std::vector<double> sampleHSpec(unsigned int nSamples, double eps);
+
+    void solveStep(bool checkConvergence = true)
+    {
+        updateLaplacian();
+        setSources(); // sets source/sink terms
+        solvePressures(); // automatically sets p
+        computeFlows(checkConvergence);
+    }
 
     void evolveGraph(double dt)
     {
-        updateLaplacian();
-        solvePressures(); // sets source/sink terms
-        reduceSystem(); // automatically sets p
-        computeFlows();
+        solveStep();
         updateConductances(dt);
     }
+
+    void printSpec(const std::vector<double>& eigvals)
+    {
+        for (double lambda : eigvals)
+        {
+            std::cout << lambda << '\n';
+        }
+    }
+
 };
