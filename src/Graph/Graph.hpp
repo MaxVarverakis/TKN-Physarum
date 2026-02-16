@@ -5,6 +5,7 @@
 #include <Sparse>
 #include <random>
 #include <iostream>
+#include <algorithm>
 
 struct Edge
 {
@@ -33,12 +34,14 @@ private:
     unsigned int m_resolution;
     unsigned int m_sink_idx;
     std::vector<unsigned int> m_source_ids;
-    const unsigned int n_sources { 6 };
-    const double I0 { 1.0 };
-    const double D0 { 0.1 };
+    const unsigned int n_sources { 30 };
+    // const unsigned int n_active_node_pairs { 6 };
+    const double I0;
+    const double D0 { 0.001 };
     bool solverInitialized { false };
     bool fitnessConverged { false };
-    const double m_tol = 1e-6; // for convergence
+    const double m_tol { 1e-6 }; // for convergence
+    const double c_t { 2.0 };
 
     std::vector<Node> m_nodes;
     std::vector<Edge> m_edges;
@@ -63,6 +66,7 @@ public:
     , m_rng_sources(seed + 1)
     , m_rng_initD(seed + 2)
     , m_resolution { resolution }
+    , I0 { 2.0 * static_cast<double>(resolution) / 4.0 }
     {
         std::cout << "Graph init seed : " << m_master_seed << '\n';
         // vector reservations occur depending on graph initialization type
@@ -88,17 +92,18 @@ public:
     void computeFlows(bool checkConvergence);
     void updateConductances(double dt);
     double efficiency(const Eigen::VectorXd& D);
-    double dissipation();
+    double dissipation(const Eigen::VectorXd& D);
+    double transportCost();
     bool conductanceConverged() const;
     bool efficiencyConverged();
     Eigen::VectorXd createPerturbationVec(std::mt19937& rng, double eps);
     double probeHessian(std::mt19937& rng, double eps);
+    double probePrune(unsigned int idx, double eps);
     std::vector<double> sampleHSpec(unsigned int nSamples, double eps);
 
     void solveStep(bool checkConvergence = true)
     {
         updateLaplacian();
-        setSources(); // sets source/sink terms
         solvePressures(); // automatically sets p
         computeFlows(checkConvergence);
     }

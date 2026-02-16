@@ -20,7 +20,7 @@
 SDL_Window* window;
 SDL_GLContext gl_context;
 
-const bool renderGraphics { false };
+const bool renderGraphics { true };
 
 bool is_running;
 bool paused { true };
@@ -32,14 +32,14 @@ const float height { 768.0f };
 double DT { 0.025 };
 
 // project-specific settings
-unsigned int res { 10 };
+unsigned int res { 12 };
 
 std::random_device rd;
 
 glm::fvec4 colorNode(float s)
 {
-    if (s > 0.0) { return glm::fvec4(0.0f, 1.0f, 1.0f, abs(s)); }
-    else { return glm::fvec4(1.0f, 0.0f, 0.0f, abs(s)); }
+    if (s > 0.0) { return glm::fvec4(0.0f, 1.0f, 1.0f, pow(abs(s),0.5)); }
+    else { return glm::fvec4(1.0f, 0.0f, 0.0f, pow(abs(s),0.5)); }
 }
 
 void set_sdl_gl_attributes()
@@ -111,9 +111,6 @@ int main()
             GLCall(glEnable(GL_BLEND));
             GLCall(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
 
-            // GLCall(glEnable( GL_LINE_SMOOTH ));
-            // GLCall(glHint( GL_LINE_SMOOTH_HINT, GL_NICEST ));
-
             printKey();
 
             // buffer stuff and initialization happens here
@@ -143,7 +140,7 @@ int main()
             VertexArray circ_VAO, line_VAO;
 
             // constructor automatically binds buffer
-            VertexBuffer circ_VBO(circles.m_vertices.data(), static_cast<unsigned int>(circles.m_vertices.size() * sizeof(float)), GL_DYNAMIC_DRAW);
+            VertexBuffer circ_VBO(circles.m_vertices.data(), static_cast<unsigned int>(circles.m_vertices.size() * sizeof(float)), GL_STATIC_DRAW);
 
             VertexBufferLayout circ_layout;
             for (int i = 0; i < 5; ++i)
@@ -165,6 +162,7 @@ int main()
             // 2. switch lines to quads that can change thickness (based off of D or Q)
             std::vector<float> lines;
             std::size_t edgeCount { graph.edgeCount() };
+            lines.reserve(edgeCount);
             for (unsigned int i = 0; i < edgeCount; ++i)
             {
                 const Edge& edge = edges[i];
@@ -176,8 +174,8 @@ int main()
                 lines.emplace_back(1.0f);
                 lines.emplace_back(1.0f);
                 lines.emplace_back(1.0f);
-                lines.emplace_back(10 * abs(edge.D));
-                // OK to use `edge.Q` here since it's synced with Qvec upon initialization
+                lines.emplace_back(abs(edge.D));
+                // OK to use `edge.D` here since it's synced with Qvec upon initialization
 
                 // node j
                 lines.emplace_back(nodes[edge.j].pos[0]);
@@ -186,7 +184,7 @@ int main()
                 lines.emplace_back(1.0f);
                 lines.emplace_back(1.0f);
                 lines.emplace_back(1.0f);
-                lines.emplace_back(10 * abs(edge.D));
+                lines.emplace_back(abs(edge.D));
             }
 
             VertexBuffer line_VBO(lines.data(), static_cast<unsigned int>(lines.size() * sizeof(float)), GL_DYNAMIC_DRAW);
@@ -248,11 +246,12 @@ int main()
                     // std::cout << "TE :" << '\t' << graph.efficiency(D) << '\n';
                     if (graph.conductanceConverged() && graph.fitConverged())
                     {
+                        // continue;
                         std::cout << "Conductance and fitness converged!" << '\n';
                         // paused = true;
                         // const std::string path { "/Users/max/TKN_Physarum/" };
                         // Utilities::exportCSV(path + "data", graph.sampleHSpec(1000, 1e-1));
-                        graph.printSpec(graph.sampleHSpec(1, 1e-1/sqrt(graph.edgeCount())));
+                        // graph.printSpec(graph.sampleHSpec(50, 1e-2));
                         is_running = false;
                     }
                 }
@@ -287,9 +286,9 @@ int main()
                     lines[12 * i + 4      ] = 1.0f - static_cast<float>(10 * abs(Q(i)));
                     lines[12 * (i + 1) - 2] = 1.0f - static_cast<float>(10 * abs(Q(i)));
 
-                    // alpha based on D (do not change)
-                    lines[12 * i + 5      ] = static_cast<float>(10 * abs(D(i)));
-                    lines[12 * (i + 1) - 1] = static_cast<float>(10 * abs(D(i)));
+                    // alpha based on D
+                    lines[12 * i + 5      ] = static_cast<float>(5 * pow(abs(D(i)), 0.5));
+                    lines[12 * (i + 1) - 1] = static_cast<float>(5 * pow(abs(D(i)), 0.5));
                 }
                 line_VBO.updateBuffer(lines.data());
 
@@ -314,17 +313,22 @@ int main()
     }
     else
     {
-        Graph graph(rd(), width, height, 2 * res + 1);
-        while (true)
+        for (int k = 0; k < 10; ++k)
         {
-            graph.evolveGraph(DT);
-            if (graph.conductanceConverged() && graph.fitConverged())
+            // parallelize this!
+            std::cout << "iteration " << k << '\n';
+            Graph graph(rd(), width, height, 2 * res + 1);
+            while (true)
             {
-                std::cout << "Conductance and fitness converged!" << '\n';
-                const std::string path { "/Users/max/TKN_Physarum/" };
-                Utilities::exportCSV(path + "data2", graph.sampleHSpec(10000, 1e-1));
-                return 0;
+                graph.evolveGraph(DT);
+                if (graph.conductanceConverged() && graph.fitConverged())
+                {
+                    std::cout << "Conductance and fitness converged!" << '\n';
+                    const std::string path { "/Users/max/TKN_Physarum/kdata/" };
+                    Utilities::exportCSV(path + std::to_string(k), graph.sampleHSpec(1, 1e-2));
+                    break;
+                }
             }
-        }
+    }
     }
 }
