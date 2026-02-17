@@ -20,7 +20,9 @@
 SDL_Window* window;
 SDL_GLContext gl_context;
 
-const bool renderGraphics { true };
+const uint8_t num_threads { static_cast<uint8_t>(std::thread::hardware_concurrency()) };
+
+const bool renderGraphics { false };
 
 bool is_running;
 bool paused { true };
@@ -29,10 +31,10 @@ bool step { false };
 const float width { 768.0f };
 const float height { 768.0f };
 
-double DT { 0.025 };
+const double DT { 0.025 };
 
 // project-specific settings
-unsigned int res { 12 };
+unsigned int res { 15 };
 
 std::random_device rd;
 
@@ -105,8 +107,6 @@ int main()
                 std::cout << "GLEW initialization failed" << std::endl;
                 return -1;
             }
-
-            std::cout << "Thread count: " << std::thread::hardware_concurrency() << '\n';
 
             GLCall(glEnable(GL_BLEND));
             GLCall(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
@@ -313,22 +313,20 @@ int main()
     }
     else
     {
-        for (int k = 0; k < 10; ++k)
+        std::cout << "Thread count: " << static_cast<int>(num_threads) << '\n';
+        // num_threads - 1 to preserve main thread
+        std::vector<std::thread> workers;
+        workers.reserve((num_threads-1));
+        for (std::size_t thread_ID = 1; thread_ID < num_threads; ++thread_ID)
         {
-            // parallelize this!
-            std::cout << "iteration " << k << '\n';
-            Graph graph(rd(), width, height, 2 * res + 1);
-            while (true)
-            {
-                graph.evolveGraph(DT);
-                if (graph.conductanceConverged() && graph.fitConverged())
-                {
-                    std::cout << "Conductance and fitness converged!" << '\n';
-                    const std::string path { "/Users/max/TKN_Physarum/kdata/" };
-                    Utilities::exportCSV(path + std::to_string(k), graph.sampleHSpec(1, 1e-2));
-                    break;
-                }
-            }
-    }
+            workers.emplace_back(&Utilities::parallelGraphs, thread_ID, rd(), width, height, res, DT);
+        }
+
+        for (auto& thread : workers)
+        {
+            thread.join();
+        }
+        
+        workers.clear();
     }
 }

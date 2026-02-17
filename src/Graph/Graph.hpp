@@ -90,7 +90,7 @@ public:
     void solvePressures();
     void setSources();
     void computeFlows(bool checkConvergence);
-    void updateConductances(double dt);
+    void updateConductances(const double dt);
     double efficiency(const Eigen::VectorXd& D);
     double dissipation(const Eigen::VectorXd& D);
     double transportCost();
@@ -99,7 +99,7 @@ public:
     Eigen::VectorXd createPerturbationVec(std::mt19937& rng, double eps);
     double probeHessian(std::mt19937& rng, double eps);
     double probePrune(unsigned int idx, double eps);
-    std::vector<double> sampleHSpec(unsigned int nSamples, double eps);
+    std::vector<double> sampleHSpec([[maybe_unused]] unsigned int nSamples, double eps);
 
     void solveStep(bool checkConvergence = true)
     {
@@ -108,7 +108,7 @@ public:
         computeFlows(checkConvergence);
     }
 
-    void evolveGraph(double dt)
+    void evolveGraph(const double dt)
     {
         solveStep();
         updateConductances(dt);

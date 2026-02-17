@@ -248,7 +248,7 @@ void Graph::computeFlows(bool checkConvergence)
     // if (checkConvergence && (abs(E - E_old) / E_old < m_tol)) { fitnessConverged = true; }
 }
 
-void Graph::updateConductances(double dt)
+void Graph::updateConductances(const double dt)
 {
     // constexpr double eps { 1e-18 };
     double alpha { 100.0 };
@@ -382,7 +382,7 @@ double Graph::probeHessian(std::mt19937& rng, double eps)
     return (Fplus - 2.0 * Fstar + Fminus) / (eps * eps); // step size division is ambiguous if use delta from Gaussian
 }
 
-std::vector<double> Graph::sampleHSpec(unsigned int nSamples, double eps)
+std::vector<double> Graph::sampleHSpec([[maybe_unused]] unsigned int nSamples, double eps)
 {
     std::mt19937 rng(m_master_seed);
     
@@ -399,9 +399,10 @@ std::vector<double> Graph::sampleHSpec(unsigned int nSamples, double eps)
         aliveEdgeIdx.push_back(i);
     }
 
-    std::vector<double> eigvals(static_cast<unsigned int>(aliveEdgeIdx.size()));
+    std::vector<double> eigvals;
+    eigvals.reserve(static_cast<unsigned int>(aliveEdgeIdx.size()));
 
-    std::cout << eigvals.size() << " edges alive" << '\n';
+    std::cout << aliveEdgeIdx.size() << " edges alive" << '\n';
     for (unsigned int idx : aliveEdgeIdx)
     {
         eigvals.emplace_back(probePrune(idx, eps));
@@ -445,3 +446,4 @@ double Graph::probePrune(unsigned int idx, double eps)
 
     return (F - Fstar) / Fstar;
 }
+
