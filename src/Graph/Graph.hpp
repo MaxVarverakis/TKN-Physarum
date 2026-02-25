@@ -40,7 +40,7 @@ private:
     const double D0 { 0.001 };
     bool solverInitialized { false };
     bool fitnessConverged { false };
-    const double m_tol { 1e-6 }; // for convergence
+    const double m_tol { 1e-12 }; // for convergence
     const double c_t { 2.0 };
 
     std::vector<Node> m_nodes;
@@ -96,8 +96,8 @@ public:
     double transportCost();
     bool conductanceConverged() const;
     bool efficiencyConverged();
-    Eigen::VectorXd createPerturbationVec(std::mt19937& rng, double eps);
-    double probeHessian(std::mt19937& rng, double eps);
+    Eigen::VectorXd createPerturbationVec(std::mt19937& rng, double eps, std::vector<unsigned int> aliveIdxs);
+    double probeHessian(std::mt19937& rng, double eps, std::vector<unsigned int> aliveIdxs);
     double probePrune(unsigned int idx, double eps);
     std::vector<double> sampleHSpec([[maybe_unused]] unsigned int nSamples, double eps);
 

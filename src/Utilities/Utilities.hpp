@@ -19,6 +19,6 @@ namespace Utilities
         }
     };
 
-    void parallelGraphs(std::size_t thread_ID, uint32_t seed, const float width, const float height, const unsigned int resolution, const double dt);
+    void parallelGraphs(std::size_t thread_ID, uint32_t seed, const float width, const float height, const unsigned int resolution, const double dt, int iter);
 
 }

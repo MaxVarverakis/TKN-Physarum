@@ -34,7 +34,7 @@ const float height { 768.0f };
 const double DT { 0.025 };
 
 // project-specific settings
-unsigned int res { 15 };
+unsigned int res { 20 };
 
 std::random_device rd;
 
@@ -315,18 +315,21 @@ int main()
     {
         std::cout << "Thread count: " << static_cast<int>(num_threads) << '\n';
         // num_threads - 1 to preserve main thread
-        std::vector<std::thread> workers;
-        workers.reserve((num_threads-1));
-        for (std::size_t thread_ID = 1; thread_ID < num_threads; ++thread_ID)
+        for (int i = 0; i < 10; ++i)
         {
-            workers.emplace_back(&Utilities::parallelGraphs, thread_ID, rd(), width, height, res, DT);
-        }
+            std::vector<std::thread> workers;
+            workers.reserve((num_threads-1));
+            for (std::size_t thread_ID = 1; thread_ID < num_threads; ++thread_ID)
+            {
+                uint32_t base_seed = rd();
+                workers.emplace_back(&Utilities::parallelGraphs, thread_ID, base_seed, width, height, res, DT, i);
+            }
 
-        for (auto& thread : workers)
-        {
-            thread.join();
+            for (auto& thread : workers)
+            {
+                thread.join();
+            }
         }
-        
-        workers.clear();
+        // workers.clear();
     }
 }
