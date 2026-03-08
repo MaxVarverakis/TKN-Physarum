@@ -3,6 +3,7 @@
 #include <vector>
 #include <glm/glm.hpp>
 #include <Sparse>
+#include <SparseCholesky>
 #include <random>
 #include <iostream>
 #include <algorithm>
@@ -36,12 +37,13 @@ private:
     std::vector<unsigned int> m_source_ids;
     const unsigned int n_sources { 30 };
     // const unsigned int n_active_node_pairs { 6 };
-    const double I0;
-    const double D0 { 0.001 };
+    const double I0; // TRY ALL SOURCES WITH 1/(N-1)
+    const double D0 { 0.1 };
     bool solverInitialized { false };
     bool fitnessConverged { false };
-    const double m_tol { 1e-12 }; // for convergence
-    const double c_t { 2.0 };
+    const double m_tol { 1e-8 }; // for convergence (previously 1e-8, 1e-12 for `clamp_2`)
+    const double D_min { 1e-14 };
+    const double c_t { 2.0 }; // previously 0.0
 
     std::vector<Node> m_nodes;
     std::vector<Edge> m_edges;
@@ -55,7 +57,8 @@ private:
     
     Eigen::VectorXd Dvec, Qvec, dDvec; // vectorized edge attributes for solver
     
-    Eigen::SparseLU<Eigen::SparseMatrix<double>> solver;
+    // Eigen::SparseLU<Eigen::SparseMatrix<double>> solver;
+    Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
 
     void regularLattice(const float width, const float height);
     std::vector<unsigned int> rectangularBoundaryIndices();
@@ -96,8 +99,10 @@ public:
     double transportCost();
     bool conductanceConverged() const;
     bool efficiencyConverged();
-    Eigen::VectorXd createPerturbationVec(std::mt19937& rng, double eps, std::vector<unsigned int> aliveIdxs);
-    double probeHessian(std::mt19937& rng, double eps, std::vector<unsigned int> aliveIdxs);
+    Eigen::VectorXd createScalePerturbationVec(std::mt19937& rng, double eps); //, std::vector<unsigned int> aliveIdxs);
+    double probeHessianViaScale(std::mt19937& rng, double eps); //, std::vector<unsigned int> aliveIdxs);
+    Eigen::VectorXd createAddPerturbationVec(std::mt19937& rng, double eps); //, std::vector<unsigned int> aliveIdxs);
+    double probeHessianViaAdd(std::mt19937& rng, double eps); //, std::vector<unsigned int> aliveIdxs);
     double probePrune(unsigned int idx, double eps);
     std::vector<double> sampleHSpec([[maybe_unused]] unsigned int nSamples, double eps);
 

@@ -22,7 +22,7 @@ SDL_GLContext gl_context;
 
 const uint8_t num_threads { static_cast<uint8_t>(std::thread::hardware_concurrency()) };
 
-const bool renderGraphics { false };
+const bool renderGraphics { true };
 
 bool is_running;
 bool paused { true };
@@ -113,9 +113,14 @@ int main()
 
             printKey();
 
+            // 3278919295
+            // 3573417879
+            // 1427502969
+            // 3034715325
             // buffer stuff and initialization happens here
             // make graph odd x odd so that there is always a central node
-            Graph graph(rd(), width, height, 2 * res + 1);
+            Graph graph(2499653597, width, height, 2 * res + 1);
+            // Graph graph(rd(), width, height, 2 * res + 1);
 
             std::vector<Circle> circs;
             circs.reserve(graph.nodeCount());
@@ -160,6 +165,7 @@ int main()
             // TODO:
             // 1. add `line` class to OpenGL engine
             // 2. switch lines to quads that can change thickness (based off of D or Q)
+            // 3. color background on pressures
             std::vector<float> lines;
             std::size_t edgeCount { graph.edgeCount() };
             lines.reserve(edgeCount);
@@ -240,6 +246,7 @@ int main()
                 if (not paused)
                 {
                     graph.evolveGraph(DT);
+                    // Utilities::addLine("/Users/max/TKN_Physarum/conductances_largeInit", D);
                     // func wrapper for "write fitness to file"
                     // std::cout << "##############################################" << '\n';
                     // std::cout << "DE :" << '\t' << std::fixed << std::setprecision(9) << graph.dissipation() << '\n';
@@ -313,13 +320,15 @@ int main()
     }
     else
     {
+        // TODO: thread pooling
         std::cout << "Thread count: " << static_cast<int>(num_threads) << '\n';
-        // num_threads - 1 to preserve main thread
-        for (int i = 0; i < 10; ++i)
+        for (int i = 111; i < 1000; ++i)
         {
+            std::cout << '\n' << "Iteration " << i << '\n' << '\n';
+
             std::vector<std::thread> workers;
-            workers.reserve((num_threads-1));
-            for (std::size_t thread_ID = 1; thread_ID < num_threads; ++thread_ID)
+            workers.reserve((num_threads));
+            for (std::size_t thread_ID = 0; thread_ID < num_threads; ++thread_ID)
             {
                 uint32_t base_seed = rd();
                 workers.emplace_back(&Utilities::parallelGraphs, thread_ID, base_seed, width, height, res, DT, i);
@@ -330,6 +339,5 @@ int main()
                 thread.join();
             }
         }
-        // workers.clear();
     }
 }

@@ -10,6 +10,8 @@
 namespace Utilities
 {
     void exportCSV(const std::string& filename, const std::vector<double>& data);
+    void addLine(const std::string& filename, const std::vector<double>& data);
+    void addLine(const std::string& filename, const Eigen::VectorXd& data);
 
     template <typename FileStream>
     void checkFileOpen(const FileStream& file)

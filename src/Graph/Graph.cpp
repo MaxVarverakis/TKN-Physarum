@@ -201,7 +201,8 @@ void Graph::solvePressures()
     else
     {
         // Handle the error (e.g., matrix is singular)
-        std::cerr << "Decomposition Failed: " << solver.lastErrorMessage() << std::endl;
+        std::cerr << "Decomposition Failed" << std::endl;
+        // std::cerr << "Decomposition Failed: " << solver.lastErrorMessage() << std::endl;
     }
 }
 
@@ -215,18 +216,21 @@ void Graph::setSources()
     std::normal_distribution<double> normal(0.0, 1.0);
     std::uniform_int_distribution<unsigned int> dist(0, static_cast<unsigned int>(s.size())-1);
 
+    // currently allows for sourcing the same node twice
     // for (unsigned int i = 0; i < s.size(); ++i)
-    for (unsigned int i = 0; i < fmin(n_sources, s.size()); ++i)
+    for (unsigned int i = 0; i < n_sources; ++i)
     {
-        // s(i) = normal(m_rng_sources);
+        // if ( i != m_sink_idx )
+        // {
+        //     s(i) = abs(normal(m_rng_sources));
+        // }
+
         double s_i { abs(normal(m_rng_sources)) };
         unsigned int idx { dist(m_rng_sources) };
         if (idx != m_sink_idx)
         {
             s(dist(m_rng_sources)) += s_i;
         }
-        // s(dist(m_rng_sources)) += s_i;
-        // s(dist(m_rng_sources)) -= s_i;
     }
 
     // s.array() -= s.mean();
@@ -259,7 +263,6 @@ void Graph::computeFlows(bool checkConvergence)
 
 void Graph::updateConductances(const double dt)
 {
-    constexpr double eps { 1e-12 }; // 1e-16 too small --> leads to singular L during perturbations
     double alpha { 100.0 };
     double beta { 10.0 };
     double gamma { 3.0 };
@@ -270,7 +273,11 @@ void Graph::updateConductances(const double dt)
         dDvec(k) = dt * ( alpha * Qgamma / (1.0 + Qgamma) - beta * Dvec(k) );
         // dDvec(k) = dt * ( alpha * pow(abs(Qvec(k)), gamma) - beta * Dvec(k) );
         Dvec(k) += dDvec(k);
-        Dvec(k) = fmax(Dvec(k), eps);
+        if (Dvec(k) < D_min)
+        {
+            dDvec(k) -= D_min - Dvec(k);
+            Dvec(k) = D_min;
+        }
     }
 }
 
@@ -295,90 +302,38 @@ bool Graph::conductanceConverged() const
     return dDvec.norm() / Dvec.norm() < m_tol;
 }
 
-Eigen::VectorXd Graph::createPerturbationVec(std::mt19937& rng, double eps, std::vector<unsigned int> aliveIdxs)
+Eigen::VectorXd Graph::createScalePerturbationVec(std::mt19937& rng, double eps) //, std::vector<unsigned int> aliveIdxs)
 {
     std::normal_distribution<double> noise(0.0, 1.0);
-    // std::normal_distribution<double> noise(1.0, eps);
     unsigned int N { static_cast<unsigned int>(Dvec.size()) };
     Eigen::VectorXd v(N);
-    // Eigen::VectorXd v { Eigen::VectorXd::Zero(N) };
 
     for (unsigned int i = 0; i < N; ++i)
-    // for (unsigned int i : aliveIdxs)
     {
-        // Rademacher generator
-        // v(i) = (rng() & 1) ? 1 : -1;
-        // v(i) = (rng() & 1) ? exp(eps * noise(rng)) : exp(-eps * noise(rng));
-        // v(i) = exp(eps * noise(rng) / sqrt(N)); // norm approximation is roughly okay, especially for large N
-        
         v(i) = noise(rng);
     }
 
-    // return v / sqrt(N);
-    // return eps * v.normalized();
     return (eps * v.normalized()).array().exp();
 }
 
-double Graph::probeHessian(std::mt19937& rng, double eps, std::vector<unsigned int> aliveIdxs)
+double Graph::probeHessianViaScale(std::mt19937& rng, double eps)//, std::vector<unsigned int> aliveIdxs)
 {
     // store converged fitness
-    // double Fstar { efficiency(Dvec) };
-    // double Fstar { E };
     solveStep(false);
     double Fstar { dissipation(Dvec) };
     
-    Eigen::VectorXd delta { createPerturbationVec(rng, eps, aliveIdxs) };
-    // delta.fill(eps); // to perturb in Dvec-direction explicitly
-    // for (int i = 0; i < delta.size(); ++i)
-    // {
-    //     std::cout << "delta_" << i << " = " << '\t' << delta(i) << '\n';
-    // }
-    // Eigen::VectorXd one(delta.size());
-    // one.fill(1.0);
-
-    // since ||D|| grows with network size (roughly sqrt(dim(D)) * avg D_i ),
-    // perturbation is scaled by the dimensionless parameter ||D||/sqrt(dim(D))
-    // std::cout << "|delta| = " << eps * Dvec.norm() / sqrt(Dvec.size()) << '\n';
-    // delta *= eps * Dvec.norm() / sqrt(Dvec.size());
+    Eigen::VectorXd delta { createScalePerturbationVec(rng, eps) };
 
     // copy current state
     Eigen::VectorXd Dstar = Dvec;
     Eigen::VectorXd Qstar = Qvec;
     
-    // finite difference calculation requires Dvec^* +/- delta
-    // + delta
-    // Dvec += delta;
-    // Eigen::VectorXd opd { one + delta };
-    // for (int i = 0; i < delta.size(); ++i)
-    // {
-    //     std::cout << "D_" << i << " = " << '\t' << Dstar(i) << '\n';
-    //     std::cout << "(one + delta)_" << i << " = " << '\t' << opd(i) << '\n';
-    // }
-    // Dvec = Dstar.cwiseProduct(opd);
     Dvec = Dstar.cwiseProduct(delta);
-    
-    // std::cout << "Relative D+ : " << '\t' << Dvec.norm() / Dstar.norm() << '\n';
-    
-    // recompute flows to get fitness
-    solveStep(false);
-    // double Fplus { efficiency(Dvec) };
-    // double Fplus { E };
+    solveStep(false); // recompute flows to get fitness
     double Fplus { dissipation(Dvec) };
     
-    // - delta
-    // Dvec -= 2 * delta;
-    // Eigen::VectorXd omd { one - delta };
-    // for (int i = 0; i < delta.size(); ++i)
-    // {
-    //     std::cout << "D_" << i << " = " << '\t' << Dstar(i) << '\n';
-    //     std::cout << "(one - delta)_" << i << " = " << '\t' << omd(i) << '\n';
-    // }
-    // Dvec = Dstar.cwiseProduct(omd);
     Dvec = Dstar.cwiseQuotient(delta);
-    // std::cout << "Relative D- : " << '\t' << Dvec.norm() / Dstar.norm() << '\n';
     solveStep(false);
-    // double Fminus { efficiency(Dvec) };
-    // double Fminus { E };
     double Fminus { dissipation(Dvec) };
 
     // revert system to steady state
@@ -388,9 +343,65 @@ double Graph::probeHessian(std::mt19937& rng, double eps, std::vector<unsigned i
     solveStep(false);
     Dvec = Dstar;
 
-    // return (Fplus - 2.0 * Fstar + Fminus) / delta.squaredNorm();
-    // exp(epsilon) ~ 1 + epsilon ==> D exp(epsilon) ~ D + epsilon D
-    // D_i * delta_i ~ D (1 +/- epsilon)
+    // normalize by Fstar to compile Rayleigh coefficients across multiple graph instances
+    if (solver.info() != Eigen::Success)
+    {
+        return -1;
+    }
+    else
+    {
+        return (Fplus - 2.0 * Fstar + Fminus) / (eps * eps) / Fstar; // step size division is ambiguous if use delta from Gaussian
+    }
+}
+
+Eigen::VectorXd Graph::createAddPerturbationVec(std::mt19937& rng, double eps)
+{
+    unsigned int N { static_cast<unsigned int>(Dvec.size()) };
+    Eigen::VectorXd v(N);
+
+    for (unsigned int i = 0; i < N; ++i)
+    {
+        // Rademacher generator
+        v(i) = (rng() & 1) ? 1 : -1;
+    }
+
+    return eps * v / sqrt(N);
+}
+
+double Graph::probeHessianViaAdd(std::mt19937& rng, double eps)//, std::vector<unsigned int> aliveIdxs)
+{
+    // store converged fitness
+    solveStep(false);
+    double Fstar { dissipation(Dvec) };
+    
+    Eigen::VectorXd delta { createAddPerturbationVec(rng, eps) };
+
+    // since ||D|| grows with network size (roughly sqrt(dim(D)) * avg D_i ),
+    // perturbation is scaled by the dimensionless parameter ||D||/sqrt(dim(D))
+    delta *= Dvec.norm() / sqrt(Dvec.size());
+
+    // copy current state
+    Eigen::VectorXd Dstar = Dvec;
+    Eigen::VectorXd Qstar = Qvec;
+    
+    // finite difference calculation requires Dvec^* +/- delta
+    // + delta
+    Dvec = (Dstar + delta).cwiseMax(D_min);
+    
+    // recompute flows to get fitness
+    solveStep(false);
+    double Fplus { dissipation(Dvec) };
+    
+    // - delta
+    Dvec = (Dstar - delta).cwiseMax(D_min);
+    solveStep(false);
+    double Fminus { dissipation(Dvec) };
+
+    // revert system to steady state
+    Dvec = Dstar - dDvec;
+    Qvec = Qstar;
+    solveStep(false);
+    Dvec = Dstar;
     
     // normalize by Fstar to compile Rayleigh coefficients across multiple graph instances
     if (solver.info() != Eigen::Success)
@@ -409,15 +420,15 @@ std::vector<double> Graph::sampleHSpec([[maybe_unused]] unsigned int nSamples, d
     
     // for probing via edge pruning
 
-    std::vector<unsigned int> aliveEdgeIdx; // (static_cast<unsigned int>(Dvec.size()));
-    for (unsigned int i = 0; i < Dvec.size(); ++i)
-    {
-        if ( (Dvec(i) < 1e-4))
-        {
-            continue;
-        }
-        aliveEdgeIdx.push_back(i);
-    }
+    // std::vector<unsigned int> aliveEdgeIdx; // (static_cast<unsigned int>(Dvec.size()));
+    // for (unsigned int i = 0; i < Dvec.size(); ++i)
+    // {
+    //     if ( (Dvec(i) < 1e-4))
+    //     {
+    //         continue;
+    //     }
+    //     aliveEdgeIdx.push_back(i);
+    // }
 
     std::vector<double> eigvals;
     
@@ -433,7 +444,8 @@ std::vector<double> Graph::sampleHSpec([[maybe_unused]] unsigned int nSamples, d
     eigvals.reserve(nSamples);
     for (unsigned int i = 0; i < nSamples; ++i)
     {
-        eigvals.push_back(probeHessian(rng, eps, aliveEdgeIdx));
+        eigvals.push_back(probeHessianViaScale(rng, eps));
+        // eigvals.push_back(probeHessianViaAdd(rng, eps)); // DOES NOT WORK AS EXPECTED
     }
 
     return eigvals;

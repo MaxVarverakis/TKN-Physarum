@@ -2,3 +2,5 @@ build/
 data/
 kdata/
 parallel_data_*/
+*.txt
+.DS_store
