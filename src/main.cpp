@@ -22,7 +22,7 @@ SDL_GLContext gl_context;
 
 const uint8_t num_threads { static_cast<uint8_t>(std::thread::hardware_concurrency()) };
 
-const bool renderGraphics { true };
+const bool renderGraphics { false };
 
 bool is_running;
 bool paused { true };
@@ -34,7 +34,7 @@ const float height { 768.0f };
 const double DT { 0.025 };
 
 // project-specific settings
-unsigned int res { 20 };
+unsigned int res { 20 / 4 };
 
 std::random_device rd;
 
@@ -119,8 +119,8 @@ int main()
             // 3034715325
             // buffer stuff and initialization happens here
             // make graph odd x odd so that there is always a central node
-            Graph graph(2499653597, width, height, 2 * res + 1);
-            // Graph graph(rd(), width, height, 2 * res + 1);
+            // Graph graph(2499653597, width, height, 2 * res + 1); for N = 25 conductance graph
+            Graph graph(rd(), width, height, 2 * res + 1);
 
             std::vector<Circle> circs;
             circs.reserve(graph.nodeCount());
@@ -322,7 +322,7 @@ int main()
     {
         // TODO: thread pooling
         std::cout << "Thread count: " << static_cast<int>(num_threads) << '\n';
-        for (int i = 111; i < 1000; ++i)
+        for (int i = 0; i < 112; ++i)
         {
             std::cout << '\n' << "Iteration " << i << '\n' << '\n';
 

@@ -35,7 +35,7 @@ private:
     unsigned int m_resolution;
     unsigned int m_sink_idx;
     std::vector<unsigned int> m_source_ids;
-    const unsigned int n_sources { 30 };
+    const unsigned int n_sources { 7 }; // previously 30
     // const unsigned int n_active_node_pairs { 6 };
     const double I0; // TRY ALL SOURCES WITH 1/(N-1)
     const double D0 { 0.1 };

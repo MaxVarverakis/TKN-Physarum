@@ -80,7 +80,7 @@ void Utilities::parallelGraphs(std::size_t thread_ID, uint32_t seed, const float
             // MAKE SURE TO CREATE DIRECTORY FIRST!
             // ************************************
             
-            const std::string path { "/Users/max/TKN_Physarum/parallel_data_1e-4_many_graphs_" + std::to_string(resolution) + "_clamp_5" + '/' };
+            const std::string path { "/Users/max/TKN_Physarum/parallel_data_1e-4_many_graphs_" + std::to_string(resolution) + "_clamp_1" + '/' };
             Utilities::exportCSV(path + std::to_string(thread_ID + 8 * static_cast<size_t>(iter)), graph.sampleHSpec(1000, 1e-4));
             break;
         }

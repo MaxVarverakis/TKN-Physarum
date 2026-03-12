@@ -25,5 +25,5 @@ ax[0].set_title(r'$\langle D_0\rangle = 0.1$', fontsize=fs)
 ax[1].set_title(r'$\langle D_0\rangle = 3.1$', fontsize=fs)
 
 ax[0].set_ylabel('Edge conductance', fontsize=fs)
-plt.savefig('./figs/D_SI.svg', dpi=500, bbox_inches='tight')
+# plt.savefig('./figs/D_SI.pdf', dpi=500, bbox_inches='tight')
 plt.show()

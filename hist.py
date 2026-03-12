@@ -1,16 +1,63 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.patheffects as pe
 import matplotlib.ticker as ticker
 from scipy.stats import wasserstein_distance
 
 fs = 16
 resolution = 20
-# data = np.loadtxt(f'./parallel_data_1e-4_many_graphs_20_clamp/1.txt')
+
+# data = np.concatenate(tuple(np.loadtxt(f'./parallel_data_1e-4_many_graphs_{resolution}_clamp_1/{8 * j + i}.txt') for i in range(8) for j in range(112))) # cost nonzero
 data = np.concatenate(tuple(np.loadtxt(f'./parallel_data_1e-4_many_graphs_{resolution}_clamp_5/{8 * j + i}.txt') for i in range(8) for j in range(112))) # cost nonzero
+
 # data = np.concatenate(tuple(np.loadtxt(f'./parallel_data_1e-4_many_graphs_{resolution}_clamp_4/{8 * j + i}.txt') for i in range(8) for j in range(254))) # cost nonzero
 # data = np.concatenate(tuple(np.loadtxt(f'./parallel_data_1e-4_many_graphs_{resolution}_clamp_3/{8 * j + i}.txt') for i in range(8) for j in range(330))) # cost zero
 # data = np.concatenate(tuple(np.loadtxt(f'./parallel_data_1e-4_many_graphs_{resolution}_clamp_2/{8 * j + i}.txt') for i in range(8) for j in range(11)))
 # data = np.concatenate(tuple(np.loadtxt(f'./parallel_data_1e-4_many_graphs_{resolution}_clamp/{8 * j + i}.txt') for i in range(8) for j in range(360)))
+
+# TRY PLOTTING SGN(DATA) * LOG10(ABS(DATA)) ON LINEAR SCALE TO SHOW NEGATIVES
+# print(np.sign(data) * np.log10(abs(data)))
+# print(f'Max : {max(data):.2e} \t Min : {min(data):.2e}')
+
+
+# plt.hist(np.sign(data) * np.log10(abs(data)))
+# plt.show()
+
+print(len(data[data<0])/len(data))
+
+c1 = 'steelblue'
+c2 = 'tab:red'
+c3 = 'tab:orange'
+
+sorted_data = np.sort(data[data>0])
+cumulative = np.ones(len(sorted_data))
+cumulative_data = np.cumsum(cumulative) / len(sorted_data)
+
+_, bns, _ = plt.hist(np.log10(data[data>0]), log=True, density=False, weights = np.ones_like(data[data>0]) / len(data), bins=100, color=c1, alpha=0.85, label='Positive')
+plt.hist(np.log10(-data[data<0]), log=True, density=False, weights = np.ones_like(data[data<0]) / len(data), bins=bns, color=c3, alpha=0.65, label='Negative')
+
+x = np.logspace(-6,2,30)
+plt.plot(np.log10(x), x**-1 * 1e-4, 'k--', label=r'$x^{-1}$ (guide to slope)')
+
+plt.legend(loc='upper right', bbox_to_anchor=(1, 0.97))
+plt.xlabel(r'Rayleigh quotient in $\log_{10}(x)$ $\left[\left(\mathcal{F}^*\right)^{-1}\right]$', fontsize=fs, labelpad=1)
+plt.ylabel('Density', fontsize=fs)
+plt.ylim(top=1e0)
+plt.xlim(-7, 2)
+plt.xticks(np.arange(-7,2))
+
+ax = plt.gca()
+
+ax2 = ax.twinx()
+ax2.plot(np.log10(sorted_data), cumulative_data, c=c2, path_effects=[pe.Stroke(linewidth=2, foreground='black'), pe.Normal()])
+ax2.set_ylim(-0.01,1.02)
+ax2.spines["right"].set_color(c2)
+ax2.tick_params(axis='y', colors=c2)
+ax2.set_ylabel('Cumulative probability (positive)', fontsize=fs, color=c2)
+
+# plt.savefig('./figs/HDensity_5.pdf', dpi=500, bbox_inches='tight')
+
+plt.show()
 
 data = data[data > 0]
 
@@ -33,11 +80,15 @@ cumulative_data = np.cumsum(cumulative) / len(sorted_data)
 
 c1 = 'steelblue'
 c2 = 'tab:red'
-bn = np.logspace(-7,2,120)
+# bn = np.logspace(-7,2,120)
+bn = np.logspace(-7,4,120)
 
 counts, edges, _ = plt.hist(data, bins=bn, log=True, weights = np.ones_like(data) / len(data), color=c1, alpha=0.85)
 # plt.hist(data, bins=np.logspace(-6,2,100), weights = np.ones_like(data) / len(data), cumulative=True, histtype='step', color='k')
 
+x = np.logspace(-6,2,30)
+plt.plot(x, x**-1 * 1e-4, 'k--', label=r'$x^{-1}$ (guide to slope)')
+plt.legend(loc='upper right', bbox_to_anchor=(1, 0.97))
 
 ax = plt.gca()
 ax.set_xlabel('Rayleigh quotient ' + r'$\left[\left(\mathcal{F}^*\right)^{-1}\right]$', fontsize=fs, labelpad=1)
@@ -45,6 +96,8 @@ ax.set_ylabel('Density', fontsize=fs) #, color=c1)
 # ax.spines["right"].set_color(c1)
 # ax.tick_params(axis='y', colors=c1)
 ax.set_xscale('log')
+ax.set_xlim(1e-7,1e2)
+ax.set_ylim(top=1e0)
 ax.xaxis.set_minor_locator(ticker.LogLocator(subs='all', numticks=10))
 # ax.set_yscale('log')
 
@@ -65,7 +118,7 @@ ax2.tick_params(axis='y', colors=c2)
 # ax2.set_yscale('log')
 ax2.set_ylabel('Cumulative probability', fontsize=fs, color=c2)
 
-# plt.savefig('./figs/HDensity_5.svg', dpi=500, bbox_inches='tight')
+# plt.savefig('./figs/HDensity_5.pdf', dpi=500, bbox_inches='tight')
 # plt.title('Edge removal fitness change')
 
 plt.show()
@@ -80,7 +133,6 @@ plt.show()
 
 
 # plt.hist(np.log10(data[data>0]), log=True, density=True, bins=100, color=c1, alpha=0.85)
-# # plt.xscale('log')
 # plt.show()
 
 recompute_convergence = False
@@ -126,7 +178,7 @@ plt.yscale('log')
 plt.ylabel(r'Wasserstein distance in $\log_{10}(x)$', fontsize=fs)
 # plt.ylabel('Log-space Wasserstein distance', fontsize=fs)
 plt.xlabel('Sample size', fontsize=fs)
-# plt.savefig('./figs/convergence_w_line_5.svg', dpi=500, bbox_inches='tight')
+# plt.savefig('./figs/convergence_w_line_5.pdf', dpi=500, bbox_inches='tight')
 
 plt.show()
 
@@ -176,6 +228,6 @@ plt.xscale('log')
 plt.yscale('log')
 
 plt.legend(title='Quantile', title_fontproperties={'weight' : 'bold'})
-# plt.savefig('./figs/quantiles_5.svg', dpi=500)
+# plt.savefig('./figs/quantiles_5.pdf', dpi=500)
 
 plt.show()
