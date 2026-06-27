@@ -12,6 +12,7 @@
 #include "VertexBufferLayout/VertexBufferLayout.hpp"
 #include "Rectangle/Rectangle.hpp"
 #include "Circle/Circle.hpp"
+#include "Line/Line.hpp"
 
 // project-specific includes go here
 #include "Graph/Graph.hpp"
@@ -22,7 +23,7 @@ SDL_GLContext gl_context;
 
 const uint8_t num_threads { static_cast<uint8_t>(std::thread::hardware_concurrency()) };
 
-const bool renderGraphics { false };
+const bool renderGraphics { true };
 
 bool is_running;
 bool paused { true };
@@ -34,7 +35,7 @@ const float height { 768.0f };
 const double DT { 0.025 };
 
 // project-specific settings
-unsigned int res { 20 / 4 };
+unsigned int res { 20 / 2 };
 
 std::random_device rd;
 
@@ -166,38 +167,53 @@ int main()
             // 1. add `line` class to OpenGL engine
             // 2. switch lines to quads that can change thickness (based off of D or Q)
             // 3. color background on pressures
-            std::vector<float> lines;
+
+            // std::vector<float> lines;
+            std::vector<Line> lines_vector;
             std::size_t edgeCount { graph.edgeCount() };
-            lines.reserve(edgeCount);
+            lines_vector.reserve(edgeCount);
+
             for (unsigned int i = 0; i < edgeCount; ++i)
             {
                 const Edge& edge = edges[i];
 
-                // node i
-                lines.emplace_back(nodes[edge.i].pos[0]);
-                lines.emplace_back(nodes[edge.i].pos[1]);
-
-                lines.emplace_back(1.0f);
-                lines.emplace_back(1.0f);
-                lines.emplace_back(1.0f);
-                lines.emplace_back(abs(edge.D));
+                lines_vector.emplace_back(Line(nodes[edge.i].pos,nodes[edge.j].pos,glm::vec4(1.0f, 1.0f, 1.0f, abs(edge.D))));
                 // OK to use `edge.D` here since it's synced with Qvec upon initialization
 
-                // node j
-                lines.emplace_back(nodes[edge.j].pos[0]);
-                lines.emplace_back(nodes[edge.j].pos[1]);
-
-                lines.emplace_back(1.0f);
-                lines.emplace_back(1.0f);
-                lines.emplace_back(1.0f);
-                lines.emplace_back(abs(edge.D));
+                // old way
+                // // node i
+                // lines.emplace_back(nodes[edge.i].pos[0]);
+                // lines.emplace_back(nodes[edge.i].pos[1]);
+                //
+                // lines.emplace_back(1.0f);
+                // lines.emplace_back(1.0f);
+                // lines.emplace_back(1.0f);
+                // lines.emplace_back(abs(edge.D));
+                // // OK to use `edge.D` here since it's synced with Qvec upon initialization
+                //
+                // // node j
+                // lines.emplace_back(nodes[edge.j].pos[0]);
+                // lines.emplace_back(nodes[edge.j].pos[1]);
+                //
+                // lines.emplace_back(1.0f);
+                // lines.emplace_back(1.0f);
+                // lines.emplace_back(1.0f);
+                // lines.emplace_back(abs(edge.D));
             }
 
-            VertexBuffer line_VBO(lines.data(), static_cast<unsigned int>(lines.size() * sizeof(float)), GL_DYNAMIC_DRAW);
+            // prepare lines for graphics
+            Lines lines(lines_vector);
+
+            // VertexBuffer line_VBO(lines.data(), static_cast<unsigned int>(lines.size() * sizeof(float)), GL_DYNAMIC_DRAW);
+            VertexBuffer line_VBO(lines.m_vertices.data(), static_cast<unsigned int>(lines.m_vertices.size() * sizeof(float)), GL_DYNAMIC_DRAW);
 
             VertexBufferLayout line_layout;
-            line_layout.push<float>(2); // x,y
-            line_layout.push<float>(4); // r,g,b,a
+            for (int i = 0; i < 2; ++i)
+            {
+                line_layout.push<float>(Line::layout_descriptor[i]);
+            }
+            // line_layout.push<float>(2); // x,y
+            // line_layout.push<float>(4); // r,g,b,a
             line_VAO.addBuffer(line_VBO, line_layout);
 
             // set up MPV matrix
@@ -211,7 +227,8 @@ int main()
             circ_shader.bind();
             circ_shader.setUniformMatrix4fv("u_MVP", MVP);
 
-            Shader line_shader("res/shaders", "colored_line_");
+            Shader line_shader("/Users/max/OpenGL_Framework/res/shaders", "colored_line_");
+            // Shader line_shader("res/shaders", "colored_line_");
             line_shader.bind();
             line_shader.setUniformMatrix4fv("u_MVP", MVP);
 
@@ -282,22 +299,26 @@ int main()
                 {
                     // comment the two corresponding lines to have flow show up as that color
                     // red
-                    // lines[12 * i + 2      ] = 1.0f - static_cast<float>(10 * abs(Q(i)));
-                    // lines[12 * (i + 1) - 4] = 1.0f - static_cast<float>(10 * abs(Q(i)));
+                    // lines.m_vertices[12 * i + 2      ] = 1.0f - static_cast<float>(10 * abs(Q(i)));
+                    // lines.m_vertices[12 * (i + 1) - 4] = 1.0f - static_cast<float>(10 * abs(Q(i)));
                     
                     // green
-                    // lines[12 * i + 3      ] = 1.0f - static_cast<float>(10 * abs(Q(i)));
-                    // lines[12 * (i + 1) - 3] = 1.0f - static_cast<float>(10 * abs(Q(i)));
+                    // lines.m_vertices[12 * i + 3      ] = 1.0f - static_cast<float>(10 * abs(Q(i)));
+                    // lines.m_vertices[12 * (i + 1) - 3] = 1.0f - static_cast<float>(10 * abs(Q(i)));
 
-                    // blue
-                    lines[12 * i + 4      ] = 1.0f - static_cast<float>(10 * abs(Q(i)));
-                    lines[12 * (i + 1) - 2] = 1.0f - static_cast<float>(10 * abs(Q(i)));
+                    // // blue
+                    // lines.m_vertices[12 * i + 4      ] = 1.0f - static_cast<float>(10 * abs(Q(i)));
+                    // lines.m_vertices[12 * (i + 1) - 2] = 1.0f - static_cast<float>(10 * abs(Q(i)));
 
-                    // alpha based on D
-                    lines[12 * i + 5      ] = static_cast<float>(5 * pow(abs(D(i)), 0.5));
-                    lines[12 * (i + 1) - 1] = static_cast<float>(5 * pow(abs(D(i)), 0.5));
+                    // // alpha based on D
+                    // lines.m_vertices[12 * i + 5      ] = static_cast<float>(5 * pow(abs(D(i)), 0.5));
+                    // lines.m_vertices[12 * (i + 1) - 1] = static_cast<float>(5 * pow(abs(D(i)), 0.5));
+
+                    lines.updateColor(i, 1.0f, 1.0f, 1.0f - static_cast<float>(10 * abs(Q(i))), static_cast<float>(5 * pow(abs(D(i)), 0.5)));
                 }
-                line_VBO.updateBuffer(lines.data());
+
+
+                line_VBO.updateBuffer(lines.m_vertices.data());
 
                 renderer.clear();
 

@@ -4,10 +4,10 @@ CXX = /opt/homebrew/opt/llvm/bin/clang++
 CXXFLAGS = -fcolor-diagnostics -fansi-escape-codes -g -pedantic-errors -Wall -Weffc++ -Wextra -Wconversion -Wsign-conversion -fopenmp -std=c++23 -O0 -arch arm64 $(SANITIZERS) -MMD -MP
 
 # Include paths
-INCLUDES = -Isrc -I../OpenGL_Framework/src -I/opt/homebrew/Cellar/SDL2/2.30.11/include -I/opt/homebrew/Cellar/glew/2.2.0_1/include -I/opt/homebrew/Cellar/glm/1.0.1/include -isystem/opt/homebrew/Cellar/eigen/5.0.1/include/eigen3/Eigen
+INCLUDES = -Isrc -I../OpenGL_Framework/src -I/opt/homebrew/Cellar/SDL2/2.32.10/include -I/opt/homebrew/Cellar/glew/2.3.1/include -I/opt/homebrew/Cellar/glm/1.0.3/include -isystem/opt/homebrew/Cellar/eigen/5.0.1/include/eigen3/Eigen
 
 # Library paths and linker flags
-LDFLAGS = -L../OpenGL_Framework/lib -L/opt/homebrew/Cellar/SDL2/2.30.11/lib -L/opt/homebrew/Cellar/glew/2.2.0_1/lib -L/opt/homebrew/Cellar/glm/1.0.1/lib
+LDFLAGS = -L../OpenGL_Framework/lib -L/opt/homebrew/Cellar/SDL2/2.32.10/lib -L/opt/homebrew/Cellar/glew/2.3.1/lib -L/opt/homebrew/Cellar/glm/1.0.3/lib
 LINKER_FLAGS = -lopenglframework -lsdl2 -framework OpenGL -lglew -lglm
 
 # Directories
